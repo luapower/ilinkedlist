@@ -4,29 +4,32 @@
 	Written by Cosmin Apreutesei. Public domain.
 
 	Elements must have a fixed memory location while in the list, so they
-	can't be stored in a dynarray. Allocate with a fixedfreelist or malloc.
+	can't be stored in a growing dynarray. Allocate elements with malloc,
+	a fixedfreelist or a preallocated array that can't grow.
 
 	The element to be inserted must have its prev and next fields set to nil.
 	This is to prevent double-inserts. Double-removes are ignored.
 
-	local list_type = list(T, 'next', 'prev')      create a list type
-	var list = list_type(nil)                      create a list object
-	var list = list(T, 'next', 'prev')             create a list object
+	local list_type = list(T, 'next', 'prev')   create a list type
+	var list = list_type(nil)                   create a list object
+	var list = list(T, 'next', 'prev')          create a list object
 
-	list.first -> &e                               first element
-	list.last  -> &e                               last element
+	list:init()                                 initialize (for struct members)
 
-	list:next(&e) -> &e                            next element
-	list:prev(&e) -> &e                            prev element
+	list.first -> &e                            first element
+	list.last  -> &e                            last element
 
-	for &e in list do ... end                      iterate elements
-	for &e in list:backwards() do ... end          iterate backwards
+	list:next(&e) -> &e                         next element
+	list:prev(&e) -> &e                         prev element
 
-	list:insert_first(&v)                          insert at the front
-	list:insert_last(&v)                           insert at the back
-	list:insert_after(&e, &v)                      insert v after e
-	list:insert_before(&e, &v)                     insert v before e
-	list:remove(&e)                                remove element
+	for &e in list do ... end                   iterate elements (remove() works inside)
+	for &e in list:backwards() do ... end       iterate backwards (remove() works inside)
+
+	list:insert_before([&e], &v)                insert v before e|first
+	list:insert_after([&e], &v)                 insert v after e|last
+	list:insert_first(&v)                       insert at the front
+	list:insert_last(&v)                        insert at the back
+	list:remove(&e)                             remove element
 
 ]]
 
@@ -86,33 +89,17 @@ local function list_type(T, NEXT, PREV)
 	end
 	terra list:backwards() return backwards{list = self} end
 
-	terra list:insert_first(v: &T)
-		assert(v.[NEXT] == nil and v.[PREV] == nil)
-		if self.first ~= nil then
-			self.first.[PREV] = v
-			v.[NEXT] = self.first
-			self.first = v
-		else
-			self.first = v
-			self.last = v
-		end
-	end
-
-	terra list:insert_last(v: &T)
-		assert(v.[NEXT] == nil and v.[PREV] == nil)
-		if self.last ~= nil then
-			self.last.[NEXT] = v
-			v.[PREV] = self.last
-			self.last = v
-		else
-			self.first = v
-			self.last = v
-		end
-	end
-
 	terra list:insert_after(p: &T, v: &T)
-		if p == self.last then
-			self:insert_last(v)
+		if p == self.last or p == nil then
+			assert(v.[NEXT] == nil and v.[PREV] == nil)
+			if self.last ~= nil then
+				self.last.[NEXT] = v
+				v.[PREV] = self.last
+				self.last = v
+			else
+				self.first = v
+				self.last = v
+			end
 		else
 			assert(v.[NEXT] == nil and v.[PREV] == nil)
 			var n = p.[NEXT]
@@ -124,14 +111,26 @@ local function list_type(T, NEXT, PREV)
 	end
 
 	terra list:insert_before(n: &T, v: &T)
-		if n == self.first then
-			self:insert_first(v)
+		if n == self.first or n == nil then
+			assert(v.[NEXT] == nil and v.[PREV] == nil)
+			if self.first ~= nil then
+				self.first.[PREV] = v
+				v.[NEXT] = self.first
+				self.first = v
+			else
+				self.first = v
+				self.last = v
+			end
 		else
 			self:insert_after(n.[PREV], v)
 		end
 	end
 
+	terra list:insert_first(v: &T) self:insert_before(nil, v) end
+	terra list:insert_last(v: &T) self:insert_after(nil, v) end
+
 	terra list:remove(e: &T)
+		if e == nil then return end --so list:remove(list.first) always works
 		var p = e.[PREV]
 		var n = e.[NEXT]
 		if p ~= nil then p.[NEXT] = n else self.first = n end
@@ -140,7 +139,7 @@ local function list_type(T, NEXT, PREV)
 		e.[PREV] = nil
 	end
 
-	setinlined(list)
+	setinlined(list.methods)
 
 	return list
 end
