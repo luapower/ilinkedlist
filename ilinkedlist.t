@@ -16,8 +16,8 @@
 
 	list:init()                                 initialize (for struct members)
 
-	list.first -> &e                            first element
-	list.last  -> &e                            last element
+	list.first -> &e                            (read/only) first element
+	list.last  -> &e                            (read/only) last element
 
 	list:next(&e) -> &e                         next element
 	list:prev(&e) -> &e                         prev element
@@ -25,11 +25,9 @@
 	for &e in list do ... end                   iterate elements (remove() works inside)
 	for &e in list:backwards() do ... end       iterate backwards (remove() works inside)
 
-	list:insert_before([&e], &v)                insert v before e|first
-	list:insert_after([&e], &v)                 insert v after e|last
-	list:insert_first(&v)                       insert at the front
-	list:insert_last(&v)                        insert at the back
-	list:remove(&e)                             remove element
+	list:insert_before(&e, &v)                  link v before e
+	list:insert_after(&e, &v)                   link v after e
+	list:remove(&e)                             unlink element
 
 ]]
 
@@ -90,7 +88,7 @@ local function list_type(T, NEXT, PREV)
 	terra list:backwards() return backwards{list = self} end
 
 	terra list:insert_after(p: &T, v: &T)
-		if p == self.last or p == nil then
+		if p == self.last then
 			assert(v.[NEXT] == nil and v.[PREV] == nil)
 			if self.last ~= nil then
 				self.last.[NEXT] = v
@@ -101,6 +99,7 @@ local function list_type(T, NEXT, PREV)
 				self.last = v
 			end
 		else
+			assert(p ~= nil)
 			assert(v.[NEXT] == nil and v.[PREV] == nil)
 			var n = p.[NEXT]
 			p.[NEXT] = v
@@ -111,7 +110,7 @@ local function list_type(T, NEXT, PREV)
 	end
 
 	terra list:insert_before(n: &T, v: &T)
-		if n == self.first or n == nil then
+		if n == self.first then
 			assert(v.[NEXT] == nil and v.[PREV] == nil)
 			if self.first ~= nil then
 				self.first.[PREV] = v
@@ -122,17 +121,17 @@ local function list_type(T, NEXT, PREV)
 				self.last = v
 			end
 		else
+			assert(n ~= nil)
 			self:insert_after(n.[PREV], v)
 		end
 	end
 
-	terra list:insert_first(v: &T) self:insert_before(nil, v) end
-	terra list:insert_last(v: &T) self:insert_after(nil, v) end
-
 	terra list:remove(e: &T)
-		if e == nil then return end --so list:remove(list.first) always works
 		var p = e.[PREV]
 		var n = e.[NEXT]
+		if p == nil and n == nil then --prevent double-remove
+			assert(e == self.first)
+		end
 		if p ~= nil then p.[NEXT] = n else self.first = n end
 		if n ~= nil then n.[PREV] = p else self.last  = p end
 		e.[NEXT] = nil
