@@ -152,7 +152,7 @@ local list_type = function(T, NEXT, PREV)
 	return list_type(T, NEXT or 'next', PREV or 'prev')
 end
 
-return macro(function(T, NEXT, PREV)
+low.intrinsiclinkedlist = macro(function(T, NEXT, PREV)
 	T = T:astype()
 	local list = list_type(T, NEXT, PREV)
 	return `list(nil)

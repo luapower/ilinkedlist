@@ -1,5 +1,5 @@
 setfenv(1, require'low')
-local list = require'ilinkedlist'
+require'ilinkedlist'
 
 local struct S {
 	x: int;
@@ -12,7 +12,7 @@ terra test()
 	a:add(S{2, nil, nil})
 	a:add(S{3, nil, nil})
 
-	var s = list(S)
+	var s = intrinsiclinkedlist(S)
 
 	for i,e in a:backwards() do s:insert_before(s.first, e) end
 	do var i = 1; for e in s do assert(e.x == i); inc(i) end assert(i == 4) end
